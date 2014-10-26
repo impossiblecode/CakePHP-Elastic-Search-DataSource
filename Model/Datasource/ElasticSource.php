@@ -677,7 +677,6 @@ class ElasticSource extends DataSource {
 		if (is_string($queryData['conditions'])) {
 			return $queryData['conditions'];
 		}
-
 		$queryData['order'] = $this->parseOrder($Model, $queryData);
 
 		$query = array();
@@ -774,7 +773,13 @@ class ElasticSource extends DataSource {
 
 			$direction = 'asc';
 
-			if (is_string($value)) {
+			if ( is_string($value) ){
+				if (stripos($value, 'desc')) {
+					$direction = 'desc';
+					$field = trim(str_replace("desc", "", $value));
+				} else {
+					$field = trim(str_replace("asc", "", $value));
+				}
 			} elseif (is_array($value)) {
 				$field = key($value);
 				$direction = current($value);
@@ -787,19 +792,23 @@ class ElasticSource extends DataSource {
 
 			$alias = $Model->alias;
 
-			if (strpos($field, '.')) {
+			if (isset($field) && strpos($field, '.')) {
 				list($_alias, $_field) = explode('.', $field, 2);
 				if (ctype_upper($_alias[0])) {
 					$alias = $_alias;
 					$field = $_field;
 				}
+			} else {
+				$alias = "";
 			}
 
-			if ($alias !== $Model->alias) {
+			if (!empty($alias) && $alias !== $Model->alias) {
 				$aliasModel = ClassRegistry::init($alias);
 				$type = $this->getColumnType($aliasModel, $field);
-			} else {
+			} elseif(!empty($alias)) {
 				$type = $this->getColumnType($Model, $field);
+			} else {
+				$type = 'string';
 			}
 
 			if ($alias === $Model->alias && !empty($model->useType) && $Model->useType !== $alias) {
@@ -818,6 +827,10 @@ class ElasticSource extends DataSource {
 							'distance_type' => 'plane'
 						)
 					);
+					break;
+				case 'string':
+					default:
+					$results = array($field => array('order' => strtolower($direction)));
 					break;
 				default:
 					$results[] = array($alias . '.' . $field => array('order' => strtolower($direction)));
